@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+import sys
+
+import tensorflow as tf
+import tensorflow.keras as keras
+
+# load source files to be able to use the model
+sys.path.insert(1, '../lib')
+from src.layers import L2Normalization
+from src.models import Conv1DTranspose
+
+# map nucleotide to index
+nt2id = {
+        '-': 0,
+        'A': 1,
+        'C': 2,
+        'G': 3,
+        'T': 4
+}
+
+def seq2ind(seqs):
+        l = []
+        for s in seqs:
+                a = list(s)
+                l.append([nt2id[i] for i in a])
+        return l
+
+# dt = []
+# with open(sys.argv[1]) as f:
+#         for a in f:
+#                 b = list(map(float, list(a.strip())))
+#                 dt.append(b)
+# X = keras.utils.to_categorical(dt, num_classes=5)
+# X = tf.slice(X, [0, 0, 1], [X.shape[0], X.shape[1], X.shape[2] - 1])
+# pre-trained model
+model_fin = '../trained-model/N5.h5'
+model = tf.keras.models.load_model(model_fin,
+                                   compile=False,
+                                   custom_objects={'L2Normalization': L2Normalization,
+                                                   'Conv1DTranspose': Conv1DTranspose})
+# print model architecture
+model.summary()
+
+# input sequences of 41bp used as input for predictions
+seqs = [
+        "TTGTGTGGGGGGCGTGCCACCAGAAATCGGGCTTGAAGCTC",
+        "C-CATGTTACAACTTCCGTACCAATTCGATCGATCCGGAAT",
+        "GGAGTGTTGGTCAGAGCAAGCCGCCCAATTCTATTACCAGA",
+        "TTCTCCATGTGTTGGTGTTCCATATGACCGACATAAGACTC",
+        "ATCGTATTTTTGCCTCTGCTCGGTAGTTCCGTAGCAGGTTT",
+        "CTCTATTGCACCTAAAATATCTATTTCTGCAAATATGTCAC"
+]
+
+# process sequences
+encoded_seqs = seq2ind(seqs)
+X = keras.utils.to_categorical(encoded_seqs, num_classes=5)
+X = tf.slice(X, [0, 0, 1], [X.shape[0], X.shape[1], X.shape[2] - 1])
+
+#to predict editing at their central cytidines
+scores = model(X)[2] # [unedited score, edited score]
+
+# print predictions
+for o in zip(seqs, scores.numpy()):
+        print('{}\t{:.4f}\t{:.4f}'.format(o[0], o[1][0], o[1][1]))
